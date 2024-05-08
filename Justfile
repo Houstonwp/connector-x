@@ -54,7 +54,7 @@ seed-db:
     psql $POSTGRES_URL -f scripts/postgres.sql
     sqlite3 ${SQLITE_URL#sqlite://} < scripts/sqlite.sql
     mysql --protocol tcp -h$MYSQL_HOST -P$MYSQL_PORT -u$MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DB < scripts/mysql.sql
-    mssql-cli -S$MSSQL_HOST -U$MSSQL_USER -P$MSSQL_PASSWORD -d$MSSQL_DB -i scripts/mssql.sql
+    
 
 # dbs not included in ci
 seed-db-more:
@@ -64,6 +64,7 @@ seed-db-more:
     cat scripts/oracle.sql | sqlplus $ORACLE_URL_SCRIPT
     mysql --protocol tcp -h$MARIADB_HOST -P$MARIADB_PORT -u$MARIADB_USER -p$MARIADB_PASSWORD $MARIADB_DB < scripts/mysql.sql
     trino $TRINO_URL --catalog=$TRINO_CATALOG < scripts/trino.sql
+    mssql-cli -S$MSSQL_HOST -U$MSSQL_USER -P$MSSQL_PASSWORD -d$MSSQL_DB -i scripts/mssql.sql
 
 # benches 
 flame-tpch conn="POSTGRES_URL":
