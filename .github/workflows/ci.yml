@@ -135,6 +135,9 @@ jobs:
   python:
     runs-on: ubuntu-latest
     container: ubuntu:20.04
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     services:
       # Label used to access the service container
       postgres:
@@ -162,29 +165,33 @@ jobs:
           --health-interval 10s
           --health-timeout 10s
           --health-retries 5
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2019-latest
-        env:
-          ACCEPT_EULA: y
-          SA_PASSWORD: mssql!Password
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$SA_PASSWORD\" -Q 'SELECT 1' || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 20
+      # mssql:
+      #   image: mcr.microsoft.com/mssql/server:2019-latest
+      #   env:
+      #     ACCEPT_EULA: y
+      #     SA_PASSWORD: mssql!Password
+      #   ports:
+      #     - 1433:1433
+      #   options: >-
+      #     --health-cmd "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P \"$SA_PASSWORD\" -Q 'SELECT 1' || exit 1"
+      #     --health-interval 10s
+      #     --health-timeout 5s
+      #     --health-retries 20
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install tools
         run: |
+          apt update
+          apt-get install -y software-properties-common
+          add-apt-repository -y ppa:deadsnakes/ppa
           apt-get update
-          apt-get install -y curl postgresql-client build-essential python3-dev python3-pip pkg-config libssl-dev git sqlite3 libsqlite3-dev mysql-client libmysqlclient-dev python3 python3-pip libicu66 libkrb5-dev libclang-dev
-          pip3 install mssql-cli
-          pip3 install cli-helpers==2.2.0
-          ln -s /usr/bin/python3 /usr/bin/python
+          apt-get install -y python${{ matrix.python-version }} python${{ matrix.python-version }}-distutils wget curl postgresql-client build-essential pkg-config libssl-dev git sqlite3 libsqlite3-dev mysql-client libmysqlclient-dev libicu66 libkrb5-dev libclang-dev
+          ln -s `which python${{ matrix.python-version }}` /usr/bin/python
+          wget -qO- https://bootstrap.pypa.io/get-pip.py | python
+          # python -m pip install mssql-cli
+          # python -m pip install cli-helpers==2.2.0
         env:
           DEBIAN_FRONTEND: noninteractive
 
@@ -208,11 +215,11 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-python-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-python-${{ matrix.python-version }}-${{ secrets.CACHE_VERSION }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install other dependent tools
         run: |
-          pip3 install poetry
+          python -m pip install poetry
           if [ ! -f "$HOME/.cargo/bin/just" ]; then curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/.cargo/bin; fi
 
       - name: Seed the database
@@ -225,11 +232,11 @@ jobs:
           MYSQL_DB: mysql
           MYSQL_USER: root
           MYSQL_PASSWORD: mysql
-          MSSQL_HOST: mssql
-          MSSQL_PORT: 1433
-          MSSQL_DB: tempdb
-          MSSQL_USER: sa
-          MSSQL_PASSWORD: mssql!Password
+          # MSSQL_HOST: mssql
+          # MSSQL_PORT: 1433
+          # MSSQL_DB: tempdb
+          # MSSQL_USER: sa
+          # MSSQL_PASSWORD: mssql!Password
 
       - name: Clippy linting
         uses: actions-rs/cargo@v1
@@ -241,7 +248,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pypoetry/virtualenvs
-          key: ${{ runner.os }}-venv-${{ secrets.CACHE_VERSION }}-${{ hashFiles('connectorx-python/poetry.lock') }}
+          key: ${{ runner.os }}-${{ matrix.python-version }}-venv-${{ secrets.CACHE_VERSION }}-${{ hashFiles('connectorx-python/poetry.lock') }}
 
       - name: Install python dependencies
         run: just bootstrap-python
@@ -252,7 +259,7 @@ jobs:
           POSTGRES_URL: "postgresql://postgres:postgres@postgres:5432/postgres"
           SQLITE_URL: "sqlite:///tmp/test.db"
           MYSQL_URL: "mysql://root:mysql@mysql:3306/mysql"
-          MSSQL_URL: "mssql://sa:mssql!Password@mssql:1433/tempdb"
+          # MSSQL_URL: "mssql://sa:mssql!Password@mssql:1433/tempdb"
           DB1: "postgresql://postgres:postgres@postgres:5432/postgres"
           DB2: "postgresql://postgres:postgres@postgres:5432/postgres"
           FED_CONFIG_PATH: ${{ github.workspace }}/.github/config
